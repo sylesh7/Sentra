@@ -1,0 +1,33 @@
+{
+  "name": "sentra",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Pre-execution trust firewall for agent-to-agent payments (OKX.AI ASP)",
+  "scripts": {
+    "identity:lookup": "tsx scripts/identity-lookup.ts",
+    "wallet:create": "tsx scripts/create-session-account.ts",
+    "wallet:address": "tsx scripts/print-account-address.ts",
+    "wallet:fund": "tsx scripts/fund-smart-account.ts",
+    "wallet:demo-cap": "tsx scripts/demo-spend-cap.ts",
+    "provenance:check": "tsx scripts/provenance-check.ts",
+    "pipeline:run": "tsx scripts/run-pipeline.ts",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@zerodev/ecdsa-validator": "^5.4.8",
+    "@zerodev/permissions": "^5.6.3",
+    "@zerodev/sdk": "^5.5.2",
+    "dotenv": "^16.5.0",
+    "tslib": "^2.8.1",
+    "viem": "^2.28.0",
+    "zod": "^3.24.2"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.5",
+    "tsx": "^4.19.2",
+    "typescript": "^5.8.3",
+    "vitest": "^3.0.5"
+  }
+}
