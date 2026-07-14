@@ -325,19 +325,28 @@ Reference: https://www.okx.ai/tutorial/asp
 
 ## 10. Repo Structure (suggested)
 
+Actual structure (as built, not just suggested):
+
 ```
 sentra/
 ├── README.md
-├── contracts/            # session key config, any mock ERC-8004 registry
+├── contracts/abis/        # real ERC-8004 ABIs (IdentityRegistry, Reputation, Validation)
+├── src/{config,chain}/    # env loading, viem chain clients (Base Sepolia + X Layer)
 ├── pipeline/
-│   ├── provenance/       # Web Bot Auth signature verification
-│   ├── quarantine/       # untrusted-content reader, no tool access
-│   ├── quorum/           # multi-model consensus extraction
-│   └── interpreter/      # deterministic capability/policy rules
-├── wallet/                # thirdweb AA integration, session key setup (X Layer)
-├── fixtures/              # sanitized test scenarios (no live malicious URLs/wallets)
-├── demo/                  # demo script, video assets
-└── docs/                  # architecture notes, doc reference links
+│   ├── provenance/        # L1a: RFC 9421 sign/verify, key directory, content-digest
+│   ├── quarantine/        # L1c: no-tool-access LLM field extraction (OpenRouter)
+│   ├── quorum/            # L1b: multi-model consensus + disagreement detection
+│   ├── interpreter/       # L1c: deterministic allow/deny policy (no LLM)
+│   ├── identity/          # L2: ERC-8004 on-chain lookup + agent-card resolution
+│   ├── planner/           # privileged planner: typed verdicts in, PaymentIntent out
+│   └── executor/          # L3 trigger: turns a PASS into a real session-key UserOp
+├── wallet/                 # ZeroDev Kernel + session keys (Base Sepolia, working)
+│   └── xlayer/             # thirdweb + X Layer attempt (code correct, infra-blocked)
+├── fixtures/                # sanitized Campaign 1 reconstruction + a legit counterpart
+├── scripts/                  # runnable CLI entry points for every layer + full pipeline
+├── test/                      # vitest -- real crypto, real on-chain reads, pure-logic units
+├── demo/                       # demo-script.md storyboard for the submission video
+└── docs/                        # verification trails, X Layer investigation, submission checklist
 ```
 
 ---

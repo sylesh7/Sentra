@@ -56,26 +56,32 @@ export async function verifyCounterpartyByAgentId(
 }
 
 /**
- * L2 gate, entrypoint B: the caller only has a domain (e.g. the source page from the
- * provenance check in L1a). Fetches https://{domain}/.well-known/agent-card.json --
- * fresh, every time, never trusting page content -- and requires it to explicitly claim
- * an agentId on OUR verified registry (chain + contract address) before trusting anything
- * further. An empty or missing registrations[] is a REJECT, not a soft-pass: self-declared
- * structured content proves nothing on its own (this is the exact Campaign 1/2 exploit
- * pattern from the Zscaler report).
+ * L2 gate, entrypoint B: the caller only has the source page's origin (e.g. straight
+ * from the provenance check in L1a -- this is the realistic path for an arbitrary
+ * incoming page, not just a pre-known agentId). Fetches
+ * {originBaseUrl}/.well-known/agent-card.json -- fresh, every time, never trusting page
+ * content -- and requires it to explicitly claim an agentId on OUR verified registry
+ * (chain + contract address) before trusting anything further. An empty or missing
+ * registrations[] is a REJECT, not a soft-pass: self-declared structured content proves
+ * nothing on its own (this is the exact Campaign 1/2 exploit pattern from the Zscaler
+ * report). Note this is still safe even if the ORIGIN is the attacker's own domain and
+ * they fabricate a registrations[] entry: verifyCounterpartyByAgentId below cross-checks
+ * the claimed agentId's real on-chain wallet against claimedWallet, so a fabricated
+ * agentId claim only helps an attacker if they also happen to control that agentId's
+ * real registered wallet.
  */
 export async function verifyCounterpartyByDomain(
-  domain: string,
+  originBaseUrl: string,
   claimedWallet: Address,
 ): Promise<IdentityVerdict> {
   let card;
   try {
-    card = await fetchAgentCard(domain);
+    card = await fetchAgentCard(originBaseUrl);
   } catch (err) {
     return {
       verdict: "REJECT",
-      reason: `could not fetch https://${domain}/.well-known/agent-card.json: ${(err as Error).message}`,
-      evidence: { domain },
+      reason: `could not fetch ${originBaseUrl}/.well-known/agent-card.json: ${(err as Error).message}`,
+      evidence: { originBaseUrl },
     };
   }
 
@@ -83,8 +89,8 @@ export async function verifyCounterpartyByDomain(
   if (!match) {
     return {
       verdict: "REJECT",
-      reason: `${domain} does not present a registrations[] entry for ${registryRef()} -- no on-chain identity proof`,
-      evidence: { domain, registrations: card.registrations, expectedRegistry: registryRef() },
+      reason: `${originBaseUrl} does not present a registrations[] entry for ${registryRef()} -- no on-chain identity proof`,
+      evidence: { originBaseUrl, registrations: card.registrations, expectedRegistry: registryRef() },
     };
   }
 
@@ -92,6 +98,6 @@ export async function verifyCounterpartyByDomain(
   const inner = await verifyCounterpartyByAgentId(agentId, claimedWallet);
   return {
     ...inner,
-    evidence: { ...inner.evidence, domain, sourcedFrom: `https://${domain}/.well-known/agent-card.json` },
+    evidence: { ...inner.evidence, originBaseUrl, sourcedFrom: new URL(".well-known/agent-card.json", originBaseUrl).toString() },
   };
 }

@@ -32,12 +32,15 @@ export async function fetchRegistrationFile(agentURI: string): Promise<Registrat
 }
 
 /**
- * Fetches the domain-control proof file at https://{domain}/.well-known/agent-card.json.
+ * Fetches the domain-control proof file at {originBaseUrl}/.well-known/agent-card.json.
  * This is the ONLY source Sentra trusts for "this domain claims to operate agentId X" --
- * it is fetched fresh over HTTPS for every check, never cached from page content.
+ * it is fetched fresh over HTTP(S) for every check, never cached from page content.
+ * Takes a full origin (not a bare domain) so it's testable against a local server the
+ * same way pipeline/provenance/directory.ts's fetchDirectory is -- a bare-domain-only
+ * signature would hardcode https:// and silently be unreachable from any test harness.
  */
-export async function fetchAgentCard(domain: string): Promise<AgentCard> {
-  const url = `https://${domain}/.well-known/agent-card.json`;
+export async function fetchAgentCard(originBaseUrl: string): Promise<AgentCard> {
+  const url = new URL(".well-known/agent-card.json", originBaseUrl).toString();
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
   try {

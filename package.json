@@ -15,6 +15,7 @@
     "xlayer:demo-cap": "tsx scripts/xlayer-demo-spend-cap.ts",
     "provenance:check": "tsx scripts/provenance-check.ts",
     "pipeline:run": "tsx scripts/run-pipeline.ts",
+    "demo:naive": "tsx scripts/naive-agent-demo.ts",
     "test": "vitest run",
     "typecheck": "tsc --noEmit"
   },

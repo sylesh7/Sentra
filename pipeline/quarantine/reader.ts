@@ -15,6 +15,42 @@ Respond with ONLY a JSON object of this exact shape, no prose:
   "reasoning": string
 }`;
 
+/** Scans for the first top-level {...} object, respecting string literals so braces
+ * inside quoted strings (or in trailing prose) don't throw off the balance count. */
+function extractFirstJsonObject(text: string): string | null {
+  const start = text.indexOf("{");
+  if (start === -1) return null;
+
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
+
+  for (let i = start; i < text.length; i++) {
+    const ch = text[i];
+    if (inString) {
+      if (escaped) {
+        escaped = false;
+      } else if (ch === "\\") {
+        escaped = true;
+      } else if (ch === '"') {
+        inString = false;
+      }
+      continue;
+    }
+    if (ch === '"') {
+      inString = true;
+    } else if (ch === "{") {
+      depth++;
+    } else if (ch === "}") {
+      depth--;
+      if (depth === 0) {
+        return text.slice(start, i + 1);
+      }
+    }
+  }
+  return null;
+}
+
 function formatPageContent(content: PageContent): string {
   return [
     `URL: ${content.url}`,
@@ -80,14 +116,26 @@ export async function extractPaymentFields(
     throw new Error("OpenRouter response had no message content");
   }
 
-  // Some providers ignore response_format and wrap JSON in a markdown code fence anyway.
-  const cleaned = raw.trim().replace(/^```(?:json)?\s*/i, "").replace(/```\s*$/, "");
+  // Some providers ignore response_format and wrap JSON in a markdown code fence, or
+  // append trailing prose after the object, anyway.
+  let cleaned = raw.trim().replace(/^```(?:json)?\s*/i, "").replace(/```\s*$/, "");
 
   let parsed: unknown;
   try {
     parsed = JSON.parse(cleaned);
-  } catch (err) {
-    throw new Error(`quarantined reader returned non-JSON output: ${(err as Error).message}`);
+  } catch {
+    // Fall back to the first braces-balanced {...} block (respecting string literals,
+    // so trailing prose that happens to contain "{" or "}" doesn't confuse the scan).
+    const extracted = extractFirstJsonObject(cleaned);
+    if (!extracted) {
+      throw new Error(`quarantined reader returned non-JSON output: ${cleaned.slice(0, 200)}`);
+    }
+    cleaned = extracted;
+    try {
+      parsed = JSON.parse(cleaned);
+    } catch (err) {
+      throw new Error(`quarantined reader returned non-JSON output: ${(err as Error).message}`);
+    }
   }
 
   return extractedPaymentFieldsSchema.parse(parsed);
