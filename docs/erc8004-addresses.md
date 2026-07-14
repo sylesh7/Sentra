@@ -36,6 +36,33 @@ directly (not scraped, not assumed) — the same CREATE2 vanity address pattern
 (`0x8004...`) is reused across every chain the registry is deployed to, which the
 raw README also confirms address-by-address per network.
 
+## X Layer Testnet (chain id 1952 -- NOT 195)
+
+| Contract | Address |
+|---|---|
+| IdentityRegistry | `0x8004A818BFB912233c491871b3d84c89A494BD9e` (same address as Base Sepolia -- deterministic CREATE2 deployment) |
+| ReputationRegistry | `0x8004B663056A597Dffe9eCcC1965A193B7388713` |
+
+**Chain ID correction (verified 2026-07-13):** an earlier draft of this project's README
+stated X Layer Testnet's chain ID as `195`. Direct verification found that wrong:
+
+```
+POST https://testrpc.xlayer.tech {"method":"eth_chainId"} -> "0x7a0" = 1952 (decimal)
+```
+
+Cross-checked against the ethereum-lists/chains public registry
+(`eip155-195.json`): chain 195 is explicitly `"status": "deprecated"`, name
+`"X Layer Testnet(Deprecated)"`. Chain **1952** (`eip155-1952.json`) is `"status": "active"`
+and is what `testrpc.xlayer.tech` / `xlayertestrpc.okx.com` actually serve. This project
+uses **1952**.
+
+**On-chain proof the registry is live on X Layer Testnet:**
+```
+POST https://testrpc.xlayer.tech
+{"method":"eth_getCode","params":["0x8004A818BFB912233c491871b3d84c89A494BD9e","latest"]}
+-> non-empty bytecode, identical minimal-proxy pattern to the Base Sepolia deployment
+```
+
 ## Why this matters
 
 Two independent lookups (a raw GitHub fetch vs. a summarized WebFetch pass) initially

@@ -1,8 +1,8 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
-import { ContractFunctionExecutionError, type Address } from "viem";
-import { publicClient } from "../../src/chain/clients.js";
+import { ContractFunctionExecutionError, type Address, type PublicClient } from "viem";
+import { publicClient as baseSepoliaPublicClient } from "../../src/chain/clients.js";
 import { env } from "../../src/config/env.js";
 import type { OnChainAgentRecord } from "./types.js";
 
@@ -14,20 +14,40 @@ const identityRegistryAbi = JSON.parse(
 const ZERO_ADDRESS: Address = "0x0000000000000000000000000000000000000000";
 
 /**
- * Reads the ERC-8004 IdentityRegistry directly on Base Sepolia. Returns null if the
- * agentId was never minted (ownerOf reverts with ERC721NonexistentToken) -- this is a
- * genuine on-chain "not registered" result, not a stand-in for one.
+ * ERC-8004's IdentityRegistry is deployed at the SAME deterministic (CREATE2) address on
+ * every chain the erc-8004 team deployed to -- Base Sepolia and X Layer Testnet included,
+ * both verified live via eth_getCode (see docs/erc8004-addresses.md). Only the client
+ * (i.e. which chain's RPC to query) needs to change; the address and ABI don't.
  */
-export async function getOnChainAgent(agentId: bigint): Promise<OnChainAgentRecord | null> {
+export interface RegistryTarget {
+  client: PublicClient;
+  chainId: number;
+}
+
+export const BASE_SEPOLIA_REGISTRY: RegistryTarget = {
+  client: baseSepoliaPublicClient,
+  chainId: env.BASE_SEPOLIA_CHAIN_ID,
+};
+
+/**
+ * Reads the ERC-8004 IdentityRegistry on the given chain. Returns null if the agentId was
+ * never minted (ownerOf reverts with ERC721NonexistentToken) -- this is a genuine on-chain
+ * "not registered" result, not a stand-in for one.
+ */
+export async function getOnChainAgent(
+  agentId: bigint,
+  target: RegistryTarget = BASE_SEPOLIA_REGISTRY,
+): Promise<OnChainAgentRecord | null> {
+  const { client } = target;
   try {
     const [owner, agentURI] = await Promise.all([
-      publicClient.readContract({
+      client.readContract({
         address: env.ERC8004_IDENTITY_REGISTRY,
         abi: identityRegistryAbi,
         functionName: "ownerOf",
         args: [agentId],
       }) as Promise<Address>,
-      publicClient.readContract({
+      client.readContract({
         address: env.ERC8004_IDENTITY_REGISTRY,
         abi: identityRegistryAbi,
         functionName: "tokenURI",
@@ -37,7 +57,7 @@ export async function getOnChainAgent(agentId: bigint): Promise<OnChainAgentReco
 
     let agentWallet: Address | null = null;
     try {
-      const wallet = (await publicClient.readContract({
+      const wallet = (await client.readContract({
         address: env.ERC8004_IDENTITY_REGISTRY,
         abi: identityRegistryAbi,
         functionName: "getAgentWallet",
@@ -58,6 +78,6 @@ export async function getOnChainAgent(agentId: bigint): Promise<OnChainAgentReco
   }
 }
 
-export function registryRef(): string {
-  return `eip155:${env.BASE_SEPOLIA_CHAIN_ID}:${env.ERC8004_IDENTITY_REGISTRY}`;
+export function registryRef(target: RegistryTarget = BASE_SEPOLIA_REGISTRY): string {
+  return `eip155:${target.chainId}:${env.ERC8004_IDENTITY_REGISTRY}`;
 }

@@ -11,11 +11,25 @@ const hexPrivateKeySchema = z
   .regex(/^0x[a-fA-F0-9]{64}$/, "expected a 0x-prefixed 32-byte private key");
 
 const envSchema = z.object({
+  // Fallback chain (already working: ZeroDev Kernel + session keys, verified Day 2).
   BASE_SEPOLIA_RPC_URL: z.string().url().default("https://sepolia.base.org"),
   BASE_SEPOLIA_CHAIN_ID: z.coerce.number().int().default(84532),
+  ZERODEV_RPC: z.string().url().optional(),
+
+  // Primary chain per the updated build plan: X Layer Testnet (OKX's own L2).
+  // Chain ID verified live via eth_chainId against testrpc.xlayer.tech -- 1952, NOT 195
+  // (195 is a deprecated chain per the ethereum-lists/chains registry). See
+  // docs/erc8004-addresses.md for the verification trail.
+  XLAYER_TESTNET_RPC_URL: z.string().url().default("https://testrpc.xlayer.tech"),
+  XLAYER_TESTNET_CHAIN_ID: z.coerce.number().int().default(1952),
+  THIRDWEB_CLIENT_ID: z.string().min(1).optional(),
+  THIRDWEB_SECRET_KEY: z.string().min(1).optional(),
+
+  // Same deterministic (CREATE2) addresses on every chain the ERC-8004 team deployed to,
+  // Base Sepolia and X Layer Testnet included -- verified per-chain via eth_getCode.
   ERC8004_IDENTITY_REGISTRY: addressSchema,
   ERC8004_REPUTATION_REGISTRY: addressSchema,
-  ZERODEV_RPC: z.string().url().optional(),
+
   OWNER_PRIVATE_KEY: hexPrivateKeySchema.optional(),
   OPENROUTER_API_KEY: z.string().min(1).optional(),
 });
