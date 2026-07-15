@@ -41,9 +41,12 @@ npm run pipeline:run -- --execute
 ```
 Narrate over the output as it streams:
 - "Same fake page. Provenance gate: unsigned — max scrutiny."
-- "Three different models — Claude, GPT, Gemini — independently extract the fields.
+- "Three different models, from three different labs, independently extract the fields.
   They agree... on where it's hidden. Capability interpreter: DENY. JSON-LD never
-  authorizes a payment, full stop."
+  authorizes a payment, full stop." (Default quorum is OpenRouter's free tier —
+  Tencent / Cohere / Nvidia; the paid set Claude / GPT / Gemini is one config switch away,
+  `PAID_QUORUM_MODELS` in `pipeline/quorum/consensus.ts`. Whichever is active, name what's
+  actually on screen — don't claim vendors the terminal isn't showing.)
 - "Identity check rejects it too — that wallet isn't the counterparty it claims to be."
 - Cut to the second scenario: "Now a real invoice, signed by its real origin, fields in
   plain text, recipient is a real registered agent on-chain. Same pipeline: PASS — and

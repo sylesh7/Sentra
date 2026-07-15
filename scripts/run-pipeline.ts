@@ -8,7 +8,9 @@ import { runQuorumExtraction } from "../pipeline/quorum/consensus.js";
 import { interpretExtraction } from "../pipeline/interpreter/policy.js";
 import { verifyCounterpartyByDomain } from "../pipeline/identity/verify.js";
 import { registryRef } from "../pipeline/identity/registry.js";
-import { planPayment } from "../pipeline/planner/plan.js";
+import { planPayment, type PaymentIntent } from "../pipeline/planner/plan.js";
+import { issueTrustReceipt, persistReceipt, verifyTrustReceipt } from "../pipeline/planner/receipt.js";
+import { buildTrustPassport } from "../pipeline/passport/index.js";
 import { executePaymentIntentWithAttestation } from "../pipeline/executor/executeWithAttestation.js";
 import { campaign1FakeDocsPage, legitInvoicePage } from "../fixtures/campaign1-sanitized.js";
 import { novelInjectionPage } from "../fixtures/novel-attack-injection.js";
@@ -100,26 +102,51 @@ async function runScenario(label: string, page: PageContent, response: FetchedRe
   }
 
   console.log("\n-- Step 6: Verdict --");
+  let verdict: "PASS" | "FAIL";
+  let reason: string;
+  let plan: PaymentIntent | undefined;
+
   if (!interpretation || !identity) {
-    console.log("BLOCK:", quorum.reasons.join("; "));
-    return;
-  }
-  const plan = planPayment({ quorum, extraction: interpretation, identity, provenance });
-  if ("blocked" in plan) {
-    console.log("BLOCK:", plan.reason);
-    return;
+    verdict = "FAIL";
+    reason = quorum.reasons.join("; ");
+    console.log("BLOCK:", reason);
+  } else {
+    const planned = planPayment({ quorum, extraction: interpretation, identity, provenance });
+    if ("blocked" in planned) {
+      verdict = "FAIL";
+      reason = planned.reason;
+      console.log("BLOCK:", reason);
+    } else {
+      verdict = "PASS";
+      reason = "All checks passed; counterparty verified via ERC-8004 Identity Registry.";
+      plan = planned.plan;
+      console.log("PASS -- forwarding to L3:", plan);
+    }
   }
 
-  console.log("PASS -- forwarding to L3:", plan.plan);
+  // Trust Receipt (add-on L §2.1): formalize the Step 6 verdict -- PASS *or* FAIL, a block
+  // is evidence too -- into a signed, portable artifact. Signed by Sentra's attestation
+  // key (the same key L3 co-signs with), persisted fetchable by receiptId, and verified
+  // right here so the demo proves the signature round-trips.
+  console.log("\n-- Trust Receipt (signed, portable verdict artifact) --");
+  const receipt = await issueTrustReceipt({ scenario: label, provenance, quorum, interpretation, identity, verdict, reason, plan });
+  const receiptPath = persistReceipt(receipt);
+  const check = await verifyTrustReceipt(receipt);
+  console.log(`receiptId=${receipt.receiptId}`);
+  console.log(`verdict=${receipt.verdict}  signer=${receipt.signer}  signatureVerified=${check.valid}`);
+  console.log(`persisted: ${receiptPath}`);
+
+  if (verdict !== "PASS" || !plan) return;
+
   if (!SHOULD_EXECUTE) {
-    console.log("(dry run -- pass --execute to actually send this payment on Base Sepolia)");
+    console.log("\n(dry run -- pass --execute to actually send this payment on Base Sepolia)");
     return;
   }
 
   console.log("\n-- L3: mandatory attestation-gate execution (Base Sepolia) --");
   console.log("(the agent's session key ALONE cannot authorize this -- see scripts/attestation-demo.ts");
   console.log(" for the on-chain proof; Sentra's co-signature below is what makes it possible)");
-  const result = await executePaymentIntentWithAttestation(plan.plan);
+  const result = await executePaymentIntentWithAttestation(plan);
   console.log("attestation-gated account:", result.accountAddress);
   console.log("tx hash:", result.txHash);
   console.log("on-chain success:", result.success);
@@ -183,6 +210,15 @@ async function main() {
     await new Promise((resolve) => attacker.server.close(resolve));
     await new Promise((resolve) => attacker2.server.close(resolve));
   }
+
+  // Trust Passport (add-on L §2.2): a read-composition view of everything Sentra knows
+  // about one agent -- on-chain ERC-8004 identity + reputation, plus Sentra's own local
+  // Trust Receipt history (which the scenarios above just populated). Built for the real,
+  // on-chain-registered agent 8017 that scenario B verified and passed. Honest nulls where
+  // no data exists (reputation not yet populated, no verified skills) -- never faked.
+  console.log(`\n${"=".repeat(70)}\nTRUST PASSPORT: agent ${REAL_AGENT_ID}\n${"=".repeat(70)}`);
+  const passport = await buildTrustPassport(BigInt(REAL_AGENT_ID));
+  console.log(JSON.stringify(passport, null, 2));
 }
 
 main().catch((err) => {

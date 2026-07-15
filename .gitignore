@@ -5,3 +5,4 @@ dist/
 *.session-key.json
 *.log
 .DS_Store
+.sentra-receipts/
