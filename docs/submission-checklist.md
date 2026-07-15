@@ -10,10 +10,10 @@ register an ASP on your behalf or authenticate as you.
 | Artifact | Status | Where |
 |---|---|---|
 | Working pre-execution checkpoint (Steps 1–6) | ✅ real, tested | `scripts/run-pipeline.ts` |
-| Real on-chain spend-cap enforcement | ✅ real, tested | `scripts/demo-spend-cap.ts`, tx `0x3a98b1ec...` on Base Sepolia |
+| Mandatory L3 attestation gate (2-of-2 weighted multisig, no bypass) | ✅ real, tested on-chain both ways | `wallet/attestation/`, `scripts/attestation-demo.ts` |
 | Real on-chain identity verification | ✅ real, tested | `pipeline/identity/`, agentId 8017 on Base Sepolia |
 | Real RFC 9421 provenance gate | ✅ real, tested | `pipeline/provenance/`, `test/provenance.test.ts` |
-| Real 3-model quorum | ✅ real, tested | `pipeline/quorum/`, Claude + GPT + Gemini via OpenRouter |
+| Real 3-model quorum | ✅ real, tested | `pipeline/quorum/` — free-tier default (Tencent/Cohere/Nvidia via OpenRouter `:free`), paid set (Claude/GPT/Gemini) available once credits are added |
 | Sanitized Campaign 1 fixture | ✅ | `fixtures/campaign1-sanitized.ts` |
 | Demo script/storyboard | ✅ | `demo/demo-script.md` |
 | "What's real vs roadmap" honesty section | ✅ | `README.md` §7 |
@@ -66,8 +66,9 @@ register an ASP on your behalf or authenticate as you.
 > multi-model quorum extraction to catch model-specific prompt-injection susceptibility,
 > enforces a deterministic policy that never trusts self-declared structured metadata
 > (JSON-LD/Open Graph/hidden CSS) to populate a payment field, checks counterparty
-> identity against the ERC-8004 Identity Registry, and — even if every layer above is
-> bypassed — caps damage with a hard, on-chain-enforced session-key spend ceiling.
+> identity against the ERC-8004 Identity Registry, and requires Sentra's own on-chain
+> co-signature — via a 2-of-2 weighted multisig smart account — before any payment
+> executes, so a compromised or rogue agent cannot simply skip the checkpoint.
 > Built in response to Zscaler ThreatLabz's July 2026 report of live indirect-prompt-
 > injection campaigns against AI agents (4 of 26 LLMs manipulated into an unauthorized
 > payment in the reported test).
@@ -82,5 +83,13 @@ register an ASP on your behalf or authenticate as you.
   self-host-only).
 - Quorum is 3 models, no disagreement-triggered secondary review beyond fail-closed
   blocking (no human-in-the-loop or escalation queue built).
+- **Default quorum runs on OpenRouter's free tier, which is real but capped**: a
+  $0-balance key gets 50 free-model requests/day total (confirmed directly from
+  OpenRouter's own error response), resetting at 00:00 UTC — a 3-model quorum burns 3
+  per pipeline run, so ~16 runs/day on an unfunded key. Adding as little as $10 of
+  credit raises that to 1000/day. Fine for the hackathon demo; **before real ASP
+  traffic, add credits** (this also unlocks `PAID_QUORUM_MODELS` in
+  `pipeline/quorum/consensus.ts` for better per-model reliability). See the daily-cap
+  note in that file for the full detail.
 - ERC-8004 Validation Registry posting, TEE-attested compute: not built, correctly
   labeled roadmap in `README.md` §7.

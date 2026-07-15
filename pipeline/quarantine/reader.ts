@@ -82,7 +82,7 @@ export async function extractPaymentFields(
   opts: QuarantineReaderOptions = {},
 ): Promise<ExtractedPaymentFields> {
   const apiKey = requireEnv("OPENROUTER_API_KEY");
-  const model = opts.model ?? "anthropic/claude-haiku-4.5";
+  const model = opts.model ?? "tencent/hy3:free";
 
   const res = await fetch(OPENROUTER_URL, {
     method: "POST",
@@ -95,8 +95,18 @@ export async function extractPaymentFields(
     body: JSON.stringify({
       model,
       temperature: 0,
-      max_tokens: 1000,
-      response_format: { type: "json_object" },
+      // Free-tier reasoning models (tencent/hy3, cohere/north-mini-code,
+      // nvidia/nemotron-3-nano) verbalize real chain-of-thought before the final JSON
+      // and get cut off mid-answer well under 1000 tokens -- verified live, 4000 is
+      // comfortable headroom. This costs nothing extra on paid models either: pricing
+      // is per token actually generated, not per max_tokens ceiling, and non-reasoning
+      // paid models finish this task in a few hundred tokens regardless of the cap.
+      max_tokens: 4000,
+      // Deliberately NOT setting response_format: json_object -- not every model in a
+      // heterogeneous, provider-agnostic quorum supports it (e.g. tencent/hy3 rejects it
+      // outright with HTTP 400). The system prompt already demands JSON-only output, and
+      // extractFirstJsonObject() below is the real fallback that makes this work uniformly
+      // across models regardless of individual structured-output support.
       messages: [
         { role: "system", content: SYSTEM_PROMPT },
         { role: "user", content: formatPageContent(content) },
@@ -105,7 +115,14 @@ export async function extractPaymentFields(
   });
 
   if (!res.ok) {
-    throw new Error(`OpenRouter extraction call failed: HTTP ${res.status} ${await res.text()}`);
+    const body = await res.text();
+    if (res.status === 402) {
+      throw new Error(`OpenRouter account out of credits (model ${model}): ${body}`);
+    }
+    if (res.status === 429) {
+      throw new Error(`OpenRouter rate limit hit (model ${model}): ${body}`);
+    }
+    throw new Error(`OpenRouter extraction call failed: HTTP ${res.status} (model ${model}) ${body}`);
   }
 
   const json = (await res.json()) as {

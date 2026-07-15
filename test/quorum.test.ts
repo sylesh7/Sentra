@@ -61,4 +61,44 @@ describe("L1b quorum consensus (pure comparison logic)", () => {
     expect(verdict.agreement).toBe("AGREE");
     expect(verdict.consensusFields?.recipientAddress?.source).toBe("json_ld");
   });
+
+  it("carries provider failures through into the returned verdict without dropping them", () => {
+    const members: QuorumMemberResult[] = [
+      { model: "model-a", fields: { recipientAddress: visibleField("0xABC"), amount: visibleField("0.001"), currency: visibleField("ETH") } },
+      { model: "model-b", fields: { recipientAddress: visibleField("0xABC"), amount: visibleField("0.001"), currency: visibleField("ETH") } },
+    ];
+    const failures = [{ model: "model-c", error: "OpenRouter account out of credits" }];
+    const verdict = compareQuorumMembers(members, failures);
+    expect(verdict.agreement).toBe("AGREE");
+    expect(verdict.failures).toEqual(failures);
+  });
+
+  it("refuses to evaluate agreement with fewer than 2 members -- this is the invariant runQuorumExtraction relies on to fail closed", () => {
+    const members: QuorumMemberResult[] = [
+      { model: "model-a", fields: { recipientAddress: visibleField("0xABC"), amount: visibleField("0.001"), currency: visibleField("ETH") } },
+    ];
+    expect(() => compareQuorumMembers(members)).toThrow(/at least 2 members/);
+  });
+
+  it("AGREEs on amount when one model redundantly includes the unit -- observed live from cohere/north-mini-code returning \"0.0012 ETH\" instead of \"0.0012\"", () => {
+    const members: QuorumMemberResult[] = [
+      { model: "model-a", fields: { recipientAddress: visibleField("0xABC"), amount: visibleField("0.0012"), currency: visibleField("ETH") } },
+      { model: "model-b", fields: { recipientAddress: visibleField("0xABC"), amount: visibleField("0.0012 ETH"), currency: visibleField("ETH") } },
+    ];
+    const verdict = compareQuorumMembers(members);
+    expect(verdict.agreement).toBe("AGREE");
+    // Stored value is normalized to the bare number so a downstream parseEther() never
+    // trips on a redundant unit suffix, regardless of which member happened to be "first".
+    expect(verdict.consensusFields?.amount?.value).toBe("0.0012");
+  });
+
+  it("still DISAGREEs when the actual numeric amount differs, unit-suffix normalization aside", () => {
+    const members: QuorumMemberResult[] = [
+      { model: "model-a", fields: { recipientAddress: visibleField("0xABC"), amount: visibleField("0.0012"), currency: visibleField("ETH") } },
+      { model: "model-b", fields: { recipientAddress: visibleField("0xABC"), amount: visibleField("5.0 ETH"), currency: visibleField("ETH") } },
+    ];
+    const verdict = compareQuorumMembers(members);
+    expect(verdict.agreement).toBe("DISAGREE");
+    expect(verdict.reasons.join(" ")).toMatch(/amount disagreement/);
+  });
 });

@@ -9,7 +9,7 @@ import { interpretExtraction } from "../pipeline/interpreter/policy.js";
 import { verifyCounterpartyByDomain } from "../pipeline/identity/verify.js";
 import { registryRef } from "../pipeline/identity/registry.js";
 import { planPayment } from "../pipeline/planner/plan.js";
-import { executePaymentIntent } from "../pipeline/executor/execute.js";
+import { executePaymentIntentWithAttestation } from "../pipeline/executor/executeWithAttestation.js";
 import { campaign1FakeDocsPage, legitInvoicePage } from "../fixtures/campaign1-sanitized.js";
 import { novelInjectionPage } from "../fixtures/novel-attack-injection.js";
 import type { PageContent } from "../pipeline/quarantine/types.js";
@@ -116,9 +116,11 @@ async function runScenario(label: string, page: PageContent, response: FetchedRe
     return;
   }
 
-  console.log("\n-- L3: session-key-scoped execution (Base Sepolia) --");
-  const result = await executePaymentIntent(plan.plan);
-  console.log("session key:", result.sessionKeyAddress);
+  console.log("\n-- L3: mandatory attestation-gate execution (Base Sepolia) --");
+  console.log("(the agent's session key ALONE cannot authorize this -- see scripts/attestation-demo.ts");
+  console.log(" for the on-chain proof; Sentra's co-signature below is what makes it possible)");
+  const result = await executePaymentIntentWithAttestation(plan.plan);
+  console.log("attestation-gated account:", result.accountAddress);
   console.log("tx hash:", result.txHash);
   console.log("on-chain success:", result.success);
 }

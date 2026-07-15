@@ -46,26 +46,30 @@ Narrate over the output as it streams:
   authorizes a payment, full stop."
 - "Identity check rejects it too — that wallet isn't the counterparty it claims to be."
 - Cut to the second scenario: "Now a real invoice, signed by its real origin, fields in
-  plain text, recipient is a real registered agent on-chain. Same pipeline: PASS —
-  and Sentra sends it for real, inside a spend cap it can't exceed even if compromised."
+  plain text, recipient is a real registered agent on-chain. Same pipeline: PASS — and
+  Sentra co-signs it. The agent's own key alone could never have sent this: the smart
+  account requires BOTH signatures, threshold 100, agent and Sentra each carry only 50."
 
 **0:60–0:80 — Architecture (30s callout, voice over a static diagram)**
 
 > "Five independent layers, each defeating a different part of the attack: cryptographic
 > provenance for typosquats, model quorum for injection-susceptible LLMs, quarantined
 > extraction with a deterministic policy layer for structured-metadata tricks, on-chain
-> identity so 'trusted' means cryptographically verified, and a hard spend ceiling that
-> holds even if everything above it fails."
+> identity so 'trusted' means cryptographically verified, and a mandatory attestation
+> gate — not a static allowance the agent could exhaust or route around, a 2-of-2
+> multisig where Sentra's own signature is a hard requirement on every single payment."
 
 **0:80–0:90 — Close: the receipts**
 
-Show on screen (have both tabs pre-opened):
+Show on screen (have tabs pre-opened):
 - ERC-8004 IdentityRegistry, Base Sepolia, agentId 8017:
   `https://sepolia.basescan.org/address/0x8004A818BFB912233c491871b3d84c89A494BD9e`
-- The real L3 payment tx from the `--execute` run above (grab the fresh hash it prints;
-  see also the Phase 2 spend-cap-enforcement proof:
-  `https://sepolia.basescan.org/tx/0x3a98b1ec40de912efeeeca84ac39ce63746b55c8c830ed0f3119905dbb7e28a4`
-  — a UserOp that exceeded the session key's cap, reverted at validation, on-chain)
+- The real L3 co-signed payment tx from the `--execute` run above (grab the fresh hash it
+  prints under "L3: mandatory attestation-gate execution")
+- Optional, if there's a beat to spare: the attestation-gate proof itself
+  (`npm run attestation:demo`) showing the agent's SOLO signature rejected by the
+  bundler, immediately followed by the combined signature succeeding — same account,
+  same nonce, the only difference is Sentra's co-signature
 
 > "Every number on screen is a real transaction. Sentra: OKX.AI's pre-execution
 > checkpoint for agent-to-agent payments."
@@ -75,17 +79,18 @@ Show on screen (have both tabs pre-opened):
 - [ ] Run `npm run demo:naive` once beforehand to confirm output looks clean on the
       recording machine (no dependency install noise mid-take)
 - [ ] Run `npm run pipeline:run -- --execute` once beforehand for the same reason, AND
-      to get a fresh tx hash for the close (grab it from the "L3: session-key-scoped
-      execution" section of the output)
-- [ ] Have both BaseScan tabs pre-loaded before recording (don't wait on page loads
-      inside the 90s)
-- [ ] Confirm `.env` has funded balances before recording — re-run
-      `npm run wallet:address` then check balance if unsure
+      to get a fresh tx hash for the close (grab it from the "L3: mandatory
+      attestation-gate execution" section of the output)
+- [ ] Confirm the attestation-gated account is funded: `npm run attestation:address` then
+      check its balance; top up with `npm run attestation:fund -- 0.01` if needed
+- [ ] Have BaseScan tabs pre-loaded before recording (don't wait on page loads inside the 90s)
 - [ ] Captions/subtitles recommended since it's dense — OKX.AI judges may watch muted
 
 ## What NOT to claim in the video
 
 Per `README.md` §7, be explicit if asked in follow-up: X Layer Testnet is not the demo
 chain (thirdweb/BlockPI don't support it yet — `docs/x-layer-investigation.md` has the
-full evidence trail), quorum is 3 models not the roadmap's larger set, and ERC-8004
-Validation Registry posting is not implemented. Don't let the video imply otherwise.
+full evidence trail), quorum is 3 models not the roadmap's larger set, ERC-8004
+Validation Registry posting is not implemented, and there's no escalation destination
+yet for quorum disagreement beyond "block and log the reason." Don't let the video imply
+otherwise.

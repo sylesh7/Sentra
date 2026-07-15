@@ -32,6 +32,18 @@ const envSchema = z.object({
 
   OWNER_PRIVATE_KEY: hexPrivateKeySchema.optional(),
   OPENROUTER_API_KEY: z.string().min(1).optional(),
+
+  // Sentra's own attestation key (L3 mandatory co-sign gate). Deliberately separate from
+  // OWNER_PRIVATE_KEY: the owner retains ultimate admin control of the smart account,
+  // Sentra's attestation key ONLY ever produces a per-UserOp co-signature, and only after
+  // a real Steps 1-6 PASS. See pipeline/executor/cosign.ts.
+  SENTRA_ATTESTATION_PRIVATE_KEY: hexPrivateKeySchema.optional(),
+
+  // Stands in for the calling agent's own persistent session key -- in a real
+  // deployment the AGENT holds this, not Sentra; it's here only because this repo
+  // demos both sides of the co-sign flow from one process. Persistent (not regenerated
+  // per run) because the weighted account it co-controls holds real funds across runs.
+  AGENT_SESSION_PRIVATE_KEY: hexPrivateKeySchema.optional(),
 });
 
 // dotenv leaves declared-but-blank keys ("ZERODEV_RPC=") as "", not undefined --
@@ -55,6 +67,8 @@ export const env = {
   ERC8004_IDENTITY_REGISTRY: parsed.data.ERC8004_IDENTITY_REGISTRY as Address,
   ERC8004_REPUTATION_REGISTRY: parsed.data.ERC8004_REPUTATION_REGISTRY as Address,
   OWNER_PRIVATE_KEY: parsed.data.OWNER_PRIVATE_KEY as Hex | undefined,
+  SENTRA_ATTESTATION_PRIVATE_KEY: parsed.data.SENTRA_ATTESTATION_PRIVATE_KEY as Hex | undefined,
+  AGENT_SESSION_PRIVATE_KEY: parsed.data.AGENT_SESSION_PRIVATE_KEY as Hex | undefined,
 };
 
 export function requireEnv<K extends keyof typeof env>(key: K): NonNullable<(typeof env)[K]> {

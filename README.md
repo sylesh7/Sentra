@@ -50,11 +50,27 @@ so no single bypass compromises the whole system:
 | **L1b — Quorum consensus** | 2–3 heterogeneous models independently extract payment fields; disagreement = escalate | Model-specific injection susceptibility (the 4/26, 2/26 split) |
 | **L1c — Privilege separation** | CaMeL-style quarantined reader + privileged planner + capability interpreter | Structured-metadata trust exploits (JSON-LD abuse, Campaign 1 & 2 pattern) |
 | **L2 — Identity verification** | ERC-8004 Identity Registry lookup (the "known-good reference" the data proves works) | Fake ASPs / unregistered counterparties |
-| **L3 — Hard spend ceiling** | X Layer smart account (ERC-4337) with a scoped session key | Total defense failure — caps damage even if L1+L2 are both bypassed |
+| **L3 — Mandatory attestation gate** | 2-of-2 weighted multisig smart account (ERC-4337): agent session key + Sentra's own attestation key, threshold requires both | Total defense failure, AND a compromised/rogue agent skipping the checkpoint entirely — there is no valid signature path that doesn't include Sentra |
 
 Design rule carried through every layer: **content never gets trust because it claims to
 be trustworthy (structured or not) — only cryptographic or on-chain verification confers
 trust.**
+
+**L3 is enforcement, not advisory.** An agent that decides not to call Sentra doesn't get
+to skip the checkpoint — it simply can't produce a valid transaction on its own. The
+payment account's SOLE controlling validator is a 2-of-2 weighted multisig
+(`@zerodev/weighted-validator`, real ZeroDev infrastructure, not a custom contract):
+the agent's session key carries weight 50, Sentra's attestation key carries weight 50,
+threshold is 100. Sentra only ever produces its half of the signature after a real
+Steps 1-6 PASS. Proven on-chain, not just asserted: `scripts/attestation-demo.ts` shows
+the agent's solo signature being rejected by the bundler (`Signature provided for the
+User Operation is invalid`) and the combined signature succeeding, both against a real
+Base Sepolia transaction. This replaces the earlier static-allow-list session key model
+(still available, see `wallet/sessionKey.ts` / `scripts/demo-spend-cap.ts`) as the
+default L3 path precisely because a static allow-list only protects pre-vetted
+counterparties — the whole point of Sentra is safely paying counterparties the agent has
+never seen before, which requires a fresh, per-transaction attestation, not a standing
+allowance.
 
 ---
 
@@ -193,13 +209,16 @@ or BlockPI add X Layer support later.
       │
       ▼
 ┌─────────────────────────────────────────────────────────────────┐
-│  L3 — SESSION KEY ENFORCEMENT (X Layer Testnet, ERC-4337)          │
-│    → thirdweb smart account, scoped session key:                   │
-│         - spend cap per tx / per time window                       │
-│         - counterparty allow-list (cross-checked vs L2)            │
-│         - expiry                                                   │
-│    → UserOp inside bounds → EntryPoint executes, gas-sponsored     │
-│    → UserOp outside bounds → reverts on-chain, no human needed     │
+│  L3 — MANDATORY ATTESTATION GATE (Base Sepolia, ERC-4337)          │
+│    → 2-of-2 weighted multisig smart account:                       │
+│         - agent session key   (weight 50)                          │
+│         - Sentra attestation key (weight 50) -- threshold 100      │
+│    → Agent alone can NEVER reach threshold -- no bypass exists     │
+│    → Sentra co-signs the EXACT (recipient, amount, nonce) tuple    │
+│      ONLY after this PASS, binding the attestation to this call    │
+│    → Combined signature → EntryPoint executes                      │
+│    → Solo agent signature → rejected before execution, no human    │
+│      needed (proven on-chain: scripts/attestation-demo.ts)         │
 └─────────────────────────────────────────────────────────────────┘
       │
       ▼
@@ -222,9 +241,15 @@ or BlockPI add X Layer support later.
 - Deliverable: given a wallet/domain, return registered / not-registered
 
 **Day 2 — Hard spend ceiling (L3)**
-- Configure thirdweb session key: max spend per tx, allow-listed recipients, expiry
+- Configure a ZeroDev session key: max spend per tx, allow-listed recipients, expiry
 - Script a UserOperation that attempts to exceed the cap → confirm on-chain revert
-- Deliverable: working demo of "even a compromised agent can't overspend," on X Layer
+- Deliverable: working demo of "even a compromised agent can't overspend," on Base Sepolia
+- **Superseded, not replaced:** the static allow-list model above is real and still works
+  (`wallet/sessionKey.ts`), but only protects pre-vetted counterparties. Added a stronger
+  mandatory attestation gate on top: a 2-of-2 weighted multisig (agent + Sentra) where
+  Sentra co-signs every payment individually after a real Steps 1-6 PASS, so the agent
+  can safely transact with counterparties it's never seen before, not just ones on a
+  pre-approved list. See `wallet/attestation/` and `scripts/attestation-demo.ts`.
 
 **Day 3 — Structural defense (L1c) + provenance gate (L1a)**
 - Build quarantined reader (extraction-only, no tool binding) + privileged planner split
@@ -254,21 +279,32 @@ or BlockPI add X Layer support later.
 ## 7. What's Real vs. What's Roadmap (state this explicitly in the submission)
 
 **Build genuinely working for the demo:**
-- ZeroDev session-key spend cap on **Base Sepolia** (real, verifiable on-chain — see
-  `docs/x-layer-investigation.md` for why X Layer isn't the demo chain: thirdweb, BlockPI,
-  and OKBund were all tried against it first, per the decision rule in Section 3)
+- Mandatory L3 attestation gate on **Base Sepolia**: 2-of-2 weighted multisig (agent
+  session key + Sentra attestation key), threshold requires both, no owner override, no
+  bypass — real, verifiable on-chain, proven both ways (solo agent signature rejected,
+  combined signature succeeds) in `scripts/attestation-demo.ts`
+- The earlier static-allow-list session-key spend cap also still works (`wallet/sessionKey.ts`,
+  `scripts/demo-spend-cap.ts`) as a documented, real alternative for pre-vetted counterparties
+- Full Steps 1-6 pipeline wired end-to-end, including real L3 execution on PASS
+  (`npm run pipeline:run -- --execute`), not just a decision-only dry run
 - Privilege-separated extraction pipeline (real, inspectable)
 - Web Bot Auth / RFC 9421 signature check against real signed responses (real Ed25519
   crypto, real key-directory fetch, tested against a genuine tampered-body case too)
-- ERC-8004 identity lookup (real — IdentityRegistry deployed and verified live on both
-  Base Sepolia and X Layer Testnet at the same address)
+- ERC-8004 identity lookup, resolved from the source origin itself (real HTTP fetch of
+  `/.well-known/agent-card.json`, not a pre-known agentId) — IdentityRegistry deployed and
+  verified live on both Base Sepolia and X Layer Testnet at the same address
+- Real 3-model quorum (Claude, GPT, Gemini via OpenRouter) that compares both value AND
+  source tag — caught a genuine model-specific injection live during testing (see
+  `fixtures/novel-attack-injection.ts`), not just a synthetic unit-test case
 
 **Explicitly roadmap, say so in the pitch rather than fake it:**
-- X Layer Testnet as the L3 chain, once thirdweb/BlockPI actually support it (code
-  already written in `wallet/xlayer/`, blocked purely on third-party bundler support)
+- X Layer Testnet as the chain, once thirdweb/BlockPI actually support its AA bundler
+  (code already written in `wallet/xlayer/`, blocked purely on third-party bundler support
+  — see `docs/x-layer-investigation.md`)
 - ERC-8004 Validation Registry posting (Sentra registering itself as an on-chain validator)
 - TEE-attested verification compute
-- Production-grade quorum model set (start with 2 models, not 3+, if Day 4 is tight)
+- A real escalation destination for quorum disagreement / max-scrutiny provenance beyond
+  "block and log the reason" (human review queue, secondary quorum, etc.)
 
 ---
 
@@ -339,9 +375,10 @@ sentra/
 │   ├── interpreter/       # L1c: deterministic allow/deny policy (no LLM)
 │   ├── identity/          # L2: ERC-8004 on-chain lookup + agent-card resolution
 │   ├── planner/           # privileged planner: typed verdicts in, PaymentIntent out
-│   └── executor/          # L3 trigger: turns a PASS into a real session-key UserOp
-├── wallet/                 # ZeroDev Kernel + session keys (Base Sepolia, working)
-│   └── xlayer/             # thirdweb + X Layer attempt (code correct, infra-blocked)
+│   └── executor/          # L3 trigger: turns a PASS into a real co-signed UserOp
+├── wallet/                 # ZeroDev Kernel accounts (Base Sepolia, working)
+│   ├── attestation/         # mandatory co-sign gate: weighted 2-of-2 multisig, real
+│   └── xlayer/               # thirdweb + X Layer attempt (code correct, infra-blocked)
 ├── fixtures/                # sanitized Campaign 1 reconstruction + a legit counterpart
 ├── scripts/                  # runnable CLI entry points for every layer + full pipeline
 ├── test/                      # vitest -- real crypto, real on-chain reads, pure-logic units
