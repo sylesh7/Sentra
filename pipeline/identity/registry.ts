@@ -3,7 +3,9 @@ import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { ContractFunctionExecutionError, type Address, type PublicClient } from "viem";
 import { publicClient as baseSepoliaPublicClient } from "../../src/chain/clients.js";
-import { env } from "../../src/config/env.js";
+import { xLayerPublicClient } from "../../src/chain/xlayer.js";
+import { baseMainnetPublicClient, xLayerMainnetPublicClient } from "../../src/chain/mainnets.js";
+import { CHAIN_CONFIG, type ChainKey } from "../../src/config/chains.js";
 import type { OnChainAgentRecord } from "./types.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -14,20 +16,41 @@ const identityRegistryAbi = JSON.parse(
 const ZERO_ADDRESS: Address = "0x0000000000000000000000000000000000000000";
 
 /**
- * ERC-8004's IdentityRegistry is deployed at the SAME deterministic (CREATE2) address on
- * every chain the erc-8004 team deployed to -- Base Sepolia and X Layer Testnet included,
- * both verified live via eth_getCode (see docs/erc8004-addresses.md). Only the client
- * (i.e. which chain's RPC to query) needs to change; the address and ABI don't.
+ * A chain to run L2 identity checks against. Carries its OWN contract address rather
+ * than assuming one global address -- ERC-8004's registry address differs between the
+ * mainnet tier and the testnet tier (same address WITHIN a tier, deterministic CREATE2,
+ * but genuinely different BETWEEN tiers). Deriving this from CHAIN_CONFIG means adding
+ * a chain here is a config change, not a rewrite of the read logic below.
  */
 export interface RegistryTarget {
   client: PublicClient;
   chainId: number;
+  identityRegistry: Address;
 }
 
-export const BASE_SEPOLIA_REGISTRY: RegistryTarget = {
-  client: baseSepoliaPublicClient,
-  chainId: env.BASE_SEPOLIA_CHAIN_ID,
-};
+function targetFor(key: ChainKey, client: PublicClient): RegistryTarget {
+  const def = CHAIN_CONFIG[key];
+  return { client, chainId: def.id, identityRegistry: def.contracts.identityRegistry };
+}
+
+export const BASE_SEPOLIA_REGISTRY: RegistryTarget = targetFor("baseSepolia", baseSepoliaPublicClient);
+
+/**
+ * X Layer Testnet is where OKX's own ERC-8004 agent registry actually lives -- this is a
+ * plain read-only eth_call target, no bundler/smart account/funding involved (unlike L3,
+ * which stays on Base Sepolia; see docs/x-layer-investigation.md for why).
+ */
+export const XLAYER_REGISTRY: RegistryTarget = targetFor("xLayerTestnet", xLayerPublicClient);
+
+/**
+ * Mainnet targets: real chain, real verified contract deployment (see
+ * docs/erc8004-addresses.md and docs/mainnet-readiness.md), genuinely usable for a read
+ * if pointed here -- not currently exercised by any default pipeline flow or funded
+ * wallet. "Architecturally ready for mainnet" means these two lines of config are all
+ * that separate a testnet read from a mainnet one; nothing else in this file changes.
+ */
+export const BASE_MAINNET_REGISTRY: RegistryTarget = targetFor("baseMainnet", baseMainnetPublicClient);
+export const XLAYER_MAINNET_REGISTRY: RegistryTarget = targetFor("xLayerMainnet", xLayerMainnetPublicClient);
 
 /**
  * Reads the ERC-8004 IdentityRegistry on the given chain. Returns null if the agentId was
@@ -38,17 +61,17 @@ export async function getOnChainAgent(
   agentId: bigint,
   target: RegistryTarget = BASE_SEPOLIA_REGISTRY,
 ): Promise<OnChainAgentRecord | null> {
-  const { client } = target;
+  const { client, identityRegistry } = target;
   try {
     const [owner, agentURI] = await Promise.all([
       client.readContract({
-        address: env.ERC8004_IDENTITY_REGISTRY,
+        address: identityRegistry,
         abi: identityRegistryAbi,
         functionName: "ownerOf",
         args: [agentId],
       }) as Promise<Address>,
       client.readContract({
-        address: env.ERC8004_IDENTITY_REGISTRY,
+        address: identityRegistry,
         abi: identityRegistryAbi,
         functionName: "tokenURI",
         args: [agentId],
@@ -58,7 +81,7 @@ export async function getOnChainAgent(
     let agentWallet: Address | null = null;
     try {
       const wallet = (await client.readContract({
-        address: env.ERC8004_IDENTITY_REGISTRY,
+        address: identityRegistry,
         abi: identityRegistryAbi,
         functionName: "getAgentWallet",
         args: [agentId],
@@ -79,5 +102,5 @@ export async function getOnChainAgent(
 }
 
 export function registryRef(target: RegistryTarget = BASE_SEPOLIA_REGISTRY): string {
-  return `eip155:${target.chainId}:${env.ERC8004_IDENTITY_REGISTRY}`;
+  return `eip155:${target.chainId}:${target.identityRegistry}`;
 }

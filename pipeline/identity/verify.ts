@@ -1,5 +1,5 @@
 import type { Address } from "viem";
-import { getOnChainAgent, registryRef } from "./registry.js";
+import { getOnChainAgent, registryRef, BASE_SEPOLIA_REGISTRY, type RegistryTarget } from "./registry.js";
 import { fetchAgentCard } from "./resolve.js";
 import type { IdentityVerdict } from "./types.js";
 
@@ -16,13 +16,14 @@ function sameAddress(a: string, b: string): boolean {
 export async function verifyCounterpartyByAgentId(
   agentId: bigint,
   claimedWallet: Address,
+  target: RegistryTarget = BASE_SEPOLIA_REGISTRY,
 ): Promise<IdentityVerdict> {
-  const record = await getOnChainAgent(agentId);
+  const record = await getOnChainAgent(agentId, target);
   if (!record) {
     return {
       verdict: "REJECT",
-      reason: `agentId ${agentId} is not registered on ${registryRef()}`,
-      evidence: { agentId: agentId.toString(), registry: registryRef() },
+      reason: `agentId ${agentId} is not registered on ${registryRef(target)}`,
+      evidence: { agentId: agentId.toString(), registry: registryRef(target) },
     };
   }
 
@@ -50,7 +51,7 @@ export async function verifyCounterpartyByAgentId(
       owner: record.owner,
       agentWallet: record.agentWallet,
       agentURI: record.agentURI,
-      registry: registryRef(),
+      registry: registryRef(target),
     },
   };
 }
@@ -73,6 +74,7 @@ export async function verifyCounterpartyByAgentId(
 export async function verifyCounterpartyByDomain(
   originBaseUrl: string,
   claimedWallet: Address,
+  target: RegistryTarget = BASE_SEPOLIA_REGISTRY,
 ): Promise<IdentityVerdict> {
   let card;
   try {
@@ -85,17 +87,17 @@ export async function verifyCounterpartyByDomain(
     };
   }
 
-  const match = card.registrations.find((r) => r.agentRegistry === registryRef());
+  const match = card.registrations.find((r) => r.agentRegistry === registryRef(target));
   if (!match) {
     return {
       verdict: "REJECT",
-      reason: `${originBaseUrl} does not present a registrations[] entry for ${registryRef()} -- no on-chain identity proof`,
-      evidence: { originBaseUrl, registrations: card.registrations, expectedRegistry: registryRef() },
+      reason: `${originBaseUrl} does not present a registrations[] entry for ${registryRef(target)} -- no on-chain identity proof`,
+      evidence: { originBaseUrl, registrations: card.registrations, expectedRegistry: registryRef(target) },
     };
   }
 
   const agentId = BigInt(match.agentId);
-  const inner = await verifyCounterpartyByAgentId(agentId, claimedWallet);
+  const inner = await verifyCounterpartyByAgentId(agentId, claimedWallet, target);
   return {
     ...inner,
     evidence: { ...inner.evidence, originBaseUrl, sourcedFrom: new URL(".well-known/agent-card.json", originBaseUrl).toString() },

@@ -63,6 +63,67 @@ POST https://testrpc.xlayer.tech
 -> non-empty bytecode, identical minimal-proxy pattern to the Base Sepolia deployment
 ```
 
+**Live registered agents used for L2 integration testing (2026-07-16):** this is a
+SEPARATE registry instance from Base Sepolia's -- same contract address/ABI, but each
+chain has its own independent set of registrations. agentId `8017` (the Base Sepolia
+test fixture) does not exist here. Found by direct `ownerOf()` probing over `eth_call`
+(agentIds 1-10 are registered, 100/1000/8017 revert as unminted):
+
+- agentId `1`: `ownerOf` / `getAgentWallet` both resolve to
+  `0x82c486145908b2D00eFeb71C8745c5fDa86Fc9f0`, `tokenURI` -> `"price_oracle"` (a plain
+  label, not a URL, on this particular registration).
+- agentId `3`, `5`, `10`: all resolve to `0x067aBC270c4638869cD347530bE34CBdD93D0Ea1`.
+
+Verified end-to-end via `npm run xlayer:identity-lookup -- 1 0x82c486145908b2D00eFeb71C8745c5fDa86Fc9f0`
+(real PASS), plus a mismatched-wallet and a never-minted-agentId case (both real
+REJECTs) -- see `pipeline/identity/registry.ts`'s `XLAYER_REGISTRY` target and
+`pipeline/identity/verify.ts`'s optional `RegistryTarget` parameter.
+
+## Base Mainnet (chain id 8453) -- read-only, see docs/mainnet-readiness.md
+
+| Contract | Address |
+|---|---|
+| IdentityRegistry | `0x8004A169FB4a3325136EB29fA0ceB6D2e539a432` (mainnet-tier address -- genuinely different from the testnet-tier `0x8004A818...` above, not a typo) |
+| ReputationRegistry | `0x8004BAa17C55a88189AE136b182e5fdA19dE9b63` |
+
+**On-chain proof (2026-07-16), direct RPC, no summarizing tool:**
+```
+POST https://mainnet.base.org {"method":"eth_chainId"} -> "0x2105" = 8453
+POST https://mainnet.base.org {"method":"eth_getCode","params":["0x8004A169FB4a3325136EB29fA0ceB6D2e539a432","latest"]}
+-> non-empty bytecode
+```
+
+**Live registered agent used to prove the config-swap claim:** agentId `1` on Base
+Mainnet resolves (`ownerOf`/`getAgentWallet`) to `0x89E9E1ab11dD1B138b1dcE6d6A4a0926aaFD5029`
+-- a real registration for "ClawNews" ("Hacker News for AI agents"), decoded from a
+base64 `data:` URI `agentURI`, not a placeholder.
+
+## X Layer Mainnet (chain id 196)
+
+| Contract | Address |
+|---|---|
+| IdentityRegistry | `0x8004A169FB4a3325136EB29fA0ceB6D2e539a432` (same mainnet-tier address as Base Mainnet) |
+| ReputationRegistry | `0x8004BAa17C55a88189AE136b182e5fdA19dE9b63` |
+
+Chain ID verified via the ethereum-lists/chains registry (`status: active`). The two
+RPC endpoints listed there (`rpc.xlayer.tech`, `xlayerrpc.okx.com`) both timed out from
+this environment; `https://xlayer.drpc.org` (found via chainlist.org's aggregated RPC
+list) responded correctly and is what `CHAIN_CONFIG` uses:
+
+```
+POST https://xlayer.drpc.org {"method":"eth_chainId"} -> "0xc4" = 196
+POST https://xlayer.drpc.org {"method":"eth_getCode","params":["0x8004A169FB4a3325136EB29fA0ceB6D2e539a432","latest"]}
+-> non-empty bytecode
+```
+
+**Live registered agent:** agentId `1` resolves (`ownerOf`/`getAgentWallet`) to
+`0x6ba100a250955209b3CAd5F06E31895f678425c1`.
+
+**All four chains** (Base Sepolia, X Layer Testnet, Base Mainnet, X Layer Mainnet)
+verified end-to-end via `npm run mainnet:readiness-proof`, which runs the exact same
+`verifyCounterpartyByAgentId` function against each and gets a real `PASS` on all four
+-- see `docs/mainnet-readiness.md` for what this claim does and doesn't mean.
+
 ## Why this matters
 
 Two independent lookups (a raw GitHub fetch vs. a summarized WebFetch pass) initially

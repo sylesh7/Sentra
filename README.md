@@ -296,8 +296,17 @@ or BlockPI add X Layer support later.
 - Real 3-model quorum (Claude, GPT, Gemini via OpenRouter) that compares both value AND
   source tag — caught a genuine model-specific injection live during testing (see
   `fixtures/novel-attack-injection.ts`), not just a synthetic unit-test case
+- L2 identity verification is chain-agnostic by design, not just testnet-only: the same
+  unmodified `verifyCounterpartyByAgentId` function does a real, live, currently-working
+  read against all four known chains — Base Sepolia, X Layer Testnet, Base Mainnet, and
+  X Layer Mainnet — via a config swap, nothing else (`npm run mainnet:readiness-proof`,
+  4/4 real PASS) — precise claim and boundary in `docs/mainnet-readiness.md`, since
+  "chain-agnostic reads" and "mainnet-ready fund custody" are not the same claim and
+  shouldn't be blurred together
 
 **Explicitly roadmap, say so in the pitch rather than fake it:**
+- L3 (fund custody — spend cap, attestation gate) on mainnet, for any chain. Deliberately
+  held on testnet until an audit; see `docs/mainnet-readiness.md` for the exact boundary
 - X Layer Testnet as the chain, once thirdweb/BlockPI actually support its AA bundler
   (code already written in `wallet/xlayer/`, blocked purely on third-party bundler support
   — see `docs/x-layer-investigation.md`)

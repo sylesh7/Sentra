@@ -6,6 +6,8 @@
   "description": "Pre-execution trust firewall for agent-to-agent payments (OKX.AI ASP)",
   "scripts": {
     "identity:lookup": "tsx scripts/identity-lookup.ts",
+    "xlayer:identity-lookup": "tsx scripts/xlayer-identity-lookup.ts",
+    "mainnet:readiness-proof": "tsx scripts/mainnet-readiness-proof.ts",
     "wallet:create": "tsx scripts/create-session-account.ts",
     "wallet:address": "tsx scripts/print-account-address.ts",
     "wallet:fund": "tsx scripts/fund-smart-account.ts",
