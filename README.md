@@ -1,6 +1,5 @@
 <div align="center">
-
-```
+<pre style="font-family: 'Courier New', Consolas, Menlo, monospace; line-height: 1.15; letter-spacing: 0;">
   █████████                       █████                       
  ███▒▒▒▒▒███                     ▒▒███                        
 ▒███    ▒▒▒   ██████  ████████   ███████   ████████   ██████  
@@ -9,8 +8,7 @@
  ███    ▒███▒███▒▒▒   ▒███ ▒███   ▒███ ███ ▒███      ███▒▒███ 
 ▒▒█████████ ▒▒██████  ████ █████  ▒▒█████  █████    ▒▒████████
  ▒▒▒▒▒▒▒▒▒   ▒▒▒▒▒▒  ▒▒▒▒ ▒▒▒▒▒    ▒▒▒▒▒  ▒▒▒▒▒      ▒▒▒▒▒▒▒▒ 
-```
-
+</pre>
 </div>
 
 # Sentra — A Pre-Execution Trust Firewall for Agent-to-Agent Payments
