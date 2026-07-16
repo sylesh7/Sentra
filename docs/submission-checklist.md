@@ -16,8 +16,11 @@ register an ASP on your behalf or authenticate as you.
 | Real 3-model quorum | ✅ real, tested | `pipeline/quorum/` — free-tier default (Tencent/Cohere/Nvidia via OpenRouter `:free`), paid set (Claude/GPT/Gemini) available once credits are added |
 | Sanitized Campaign 1 fixture | ✅ | `fixtures/campaign1-sanitized.ts` |
 | Demo script/storyboard | ✅ | `demo/demo-script.md` |
-| "What's real vs roadmap" honesty section | ✅ | `README.md` §7 |
+| "What's real vs roadmap" honesty section | ✅ | `README.md` §7, `docs/SECURITY_NOTES.md` |
 | X Layer investigation writeup (for judge Q&A) | ✅ | `docs/x-layer-investigation.md` |
+| **Live, publicly reachable A2MCP endpoint** | ✅ real, deployed, verified | `https://sentra-gettrust.vercel.app/mcp` — `docs/mcp-server.md`, `npm run verify:live` |
+| Judge-runnable, zero-secret verifier | ✅ | `scripts/verify-live.ts` (`npm run verify:live`) |
+| Judge guide (fast path + scoring map + reviewer Q&A) | ✅ | `docs/JUDGE_GUIDE.md` |
 
 ## Your action items (README §8, in order)
 
@@ -33,14 +36,12 @@ register an ASP on your behalf or authenticate as you.
    standardized, no-negotiation API service is the right shape for a pass/fail
    checkpoint. Nothing to build differently in this repo for that choice.
 
-4. **Expose a compliant endpoint.** This repo currently runs as CLI scripts
-   (`npm run pipeline:run`), not a hosted HTTP endpoint. **Before you can register the
-   ASP, this needs to become a real reachable endpoint** — e.g. wrap
-   `pipeline/planner/plan.ts`'s Step 1→6 flow in a small HTTP server (Express/Fastify/
-   Hono) that accepts a payment-intent request and returns the verdict JSON. Decide
-   free vs. x402-paid per your own call in §8; free is simpler for the hackathon
-   window. *This is real remaining work* — say the word and I'll build the HTTP
-   wrapper next; it's a thin layer over code that already exists and is tested.
+4. **Expose a compliant endpoint. Done.** Live at
+   `https://sentra-gettrust.vercel.app/mcp` — a real MCP server (`@modelcontextprotocol/sdk`,
+   Streamable HTTP transport) deployed on Vercel, exposing the `getTrust` tool. Free tier,
+   per §8's own recommendation. Verify with zero credentials: `npm run verify:live`. See
+   `docs/mcp-server.md` for the build details and `docs/JUDGE_GUIDE.md` for how a judge
+   should check it.
 
 5. **Register via OKX.AI's prompt-driven flow.** You provide name/description/service
    list/pricing to the Agent directly — I can draft the description text (see below)
@@ -77,7 +78,6 @@ register an ASP on your behalf or authenticate as you.
 
 ## Before you submit: known gaps to be upfront about if asked
 
-- No hosted endpoint yet (item 4 above) — pipeline runs as CLI/scripts today.
 - L3 runs on Base Sepolia, not X Layer Testnet (see `docs/x-layer-investigation.md`
   for why — thirdweb/BlockPI don't support X Layer's AA bundler yet, OKBund is
   self-host-only).

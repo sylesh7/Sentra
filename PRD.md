@@ -4,16 +4,19 @@
 **Hackathon:** OKX AI Genesis Hackathon 2026
 **Track:** Best Product (primary), Software Utility (primary), Finance Copilot (secondary)
 **ASP Type:** A2MCP
-**Version:** 1.1 — Pre-submission, corrected against actual implementation
+**Version:** 1.2 — Post-deployment, corrected against the live MCP endpoint
 **Last updated:** 2026-07-16
 
 > **This revision corrects v1.0 against the real, verified codebase.** Where v1.0
 > described the intended design, this version states plainly what's built vs. not yet
 > built. Nothing below is aspirational without being labeled as such — see the ✅/🔲
-> markers throughout. Full audit trail behind every correction: `pending.md` (a prior
-> session's own build audit, independently consistent with this one) and direct
-> source reads of `pipeline/planner/receipt.ts`, `pipeline/passport/index.ts`,
-> `wallet/attestation/weightedAccount.ts`, `src/config/chains.ts`.
+> markers throughout. v1.2 updates the handful of §5/§6/§7/§9 rows that v1.1 correctly
+> marked "not yet applicable" at the time but which are now real, following the MCP
+> endpoint's deployment to `https://sentra-gettrust.vercel.app/mcp` — see
+> `docs/mcp-server.md`, `docs/JUDGE_GUIDE.md`, and `docs/SECURITY_NOTES.md`. Full audit
+> trail behind every correction: direct source reads of `pipeline/planner/receipt.ts`,
+> `pipeline/passport/index.ts`, `wallet/attestation/weightedAccount.ts`,
+> `src/config/chains.ts`, `pipeline/gettrust.ts`.
 
 ---
 
@@ -387,25 +390,25 @@ proven live against Base Mainnet and X Layer Mainnet — fund custody (L3) is no
 |---|---|---|
 | Language | Python 3.11 | **TypeScript** (Node.js, ESM, `"type": "module"`) |
 | Runtime / scripts | — | `tsx` (CLI script execution), no build step for dev |
-| API framework | FastAPI | 🔲 None yet — no HTTP server exists (see §4.1, §4.3) |
-| MCP wrapper | FastMCP | 🔲 None yet — no MCP SDK dependency (see §4.4) |
+| API framework | FastAPI | ✅ Not FastAPI, but real: `@modelcontextprotocol/sdk`'s Streamable HTTP transport, served via Express locally (`services/mcp/server.ts`) and a Vercel serverless handler in production (`api/mcp.ts`) — see §4.1, §4.3 |
+| MCP wrapper | FastMCP | ✅ Real — official TypeScript `@modelcontextprotocol/sdk` (not FastMCP/Python), one tool (`getTrust`), shared definition in `services/mcp/getTrustTool.ts` — see §4.4 |
 | Extraction models | 3 heterogeneous vendor models (quorum, L1b) | ✅ Accurate — real, via OpenRouter: free-tier default (Tencent/Cohere/Nvidia, `FREE_QUORUM_MODELS`), paid set available (`PAID_QUORUM_MODELS`: Claude/GPT/Gemini) — `pipeline/quorum/consensus.ts` |
 | Provenance verification | RFC 9421 HTTP Message Signatures | ✅ Accurate — real Ed25519 crypto via WebCrypto, real `http-message-sig`/`web-bot-auth` npm packages, `pipeline/provenance/` |
-| Payment middleware | Free endpoint / x402 roadmap | 🔲 No endpoint exists yet at all (free or paid); x402 not integrated anywhere (`grep -ril "x402"` returns nothing) |
+| Payment middleware | Free endpoint / x402 roadmap | ✅ Free endpoint shipped (`https://sentra-gettrust.vercel.app/mcp`); x402-paid tier still correctly roadmap (`grep -ril "x402"` returns nothing) |
 | Identity registry | ERC-8004 (read-only client) | ✅ Accurate, and broader than stated — 4 chains, see §4.6 |
 | Smart contracts | Solidity 0.8.x, Hardhat | 🔲 **None** — no `.sol` files, no Hardhat config, anywhere. See §4.5 |
 | Account abstraction | thirdweb SDK (attempted X Layer) → ZeroDev (Base Sepolia, shipped) | ✅ Accurate, with detail: `@zerodev/permissions` (static session key) + `@zerodev/weighted-validator` (mandatory attestation gate) — both real, both shipped |
 | Chain | Base Sepolia (launch), X Layer Testnet (roadmap) | Undersold — X Layer Testnet L2 reads are **live today**, not roadmap. L3 stays Base Sepolia-only (real blocker, see §7) |
-| Hosting | TBD VPS, nginx, Let's Encrypt | 🔲 Nothing set up — no Dockerfile, no nginx config, no deploy target chosen |
-| Container | Docker + docker-compose | 🔲 None exist |
-| Testing | — | ✅ `vitest`, 34/34 passing across 6 suites — real on-chain reads, real crypto, real HTTP fetches, no mocks (see repo-wide fake-fallback audit, no findings) |
+| Hosting | TBD VPS, nginx, Let's Encrypt | ✅ Vercel (Fluid Compute, Hobby tier), live at `https://sentra-gettrust.vercel.app` — no VPS/nginx, different but real and deployed |
+| Container | Docker + docker-compose | 🔲 None exist — not needed for the Vercel deploy target chosen |
+| Testing | — | ✅ `vitest`, 9 suites, 39/42 passing as of the last run — real on-chain reads, real crypto, real HTTP fetches, no mocks; the 3 failures are OpenRouter's real free-tier daily cap being exhausted (external, time-of-day-dependent), not a logic defect — see `docs/JUDGE_GUIDE.md` |
 
 ---
 
 ## 6. Payment Model
 
 **Type:** A2MCP (pay-per-call, no negotiation) — decision unchanged from v1.0.
-**Gate at launch:** Free endpoint — 🔲 not yet applicable, since no endpoint exists to gate.
+**Gate at launch:** Free endpoint — ✅ shipped: `https://sentra-gettrust.vercel.app/mcp`, free tier, no auth required.
 **Roadmap:** x402-based paid tier once real per-call model-inference cost justifies it — unchanged, still correctly roadmap (no x402 code anywhere).
 **Note on cost reality:** the free-tier quorum models (`FREE_QUORUM_MODELS`) are
 genuinely $0 per call but capped at 50 requests/day per OpenRouter account (1000/day
@@ -422,7 +425,7 @@ documentation of this constraint.
 | Determinism (interpreter stage only) | 100% | ✅ True |
 | Latency (p95, below-threshold) | < 1s | 🔲 No below-threshold path exists (§4.1a) |
 | Latency (p95, full quorum) | < 6s | ⚠️ Not formally benchmarked |
-| Availability | 99.9% during judging window | 🔲 N/A — nothing hosted yet |
+| Availability | 99.9% during judging window | ⚠️ Live on Vercel (Fluid Compute), not formally measured against a 99.9% target — no uptime monitoring set up for the judging window |
 | Security | Signing keys in env vars / secrets manager only; never in source | ✅ True — `SENTRA_ATTESTATION_PRIVATE_KEY`, `OWNER_PRIVATE_KEY`, `AGENT_SESSION_PRIVATE_KEY` all read from `.env` (gitignored), never hardcoded |
 | Trust Receipt lifetime | Single-use, short expiry window; replay-checked on-chain | ⚠️ Partially true, differently: no expiry field on the receipt object itself; replay protection is real but comes from the L3 UserOperation nonce, not a receipt-level nonce (§4.2) |
 | Evidence retention | Logged and queryable for ≥30 days | ⚠️ Logged: yes, indefinitely (flat files, no TTL/eviction). Queryable: only by local filesystem lookup, not a network API (§3) |
@@ -453,7 +456,7 @@ Unchanged from v1.0, plus one addition:
 | Risk | Likelihood | Mitigation |
 |---|---|---|
 | X Layer AA tooling unsupported for L3 (confirmed: thirdweb rejects X Layer chain ID; BlockPI doesn't list it; OKBund is self-hosted-only) | Realized | Ship enforcement on Base Sepolia + ZeroDev (done); document the X Layer attempt and blocker explicitly (done, `docs/x-layer-investigation.md`); L2 identity reads on X Layer shipped anyway since that part never depended on AA tooling |
-| **No HTTP/MCP endpoint exists — ASP registration cannot proceed without it** | **Realized, and the critical path item** | Extract `getTrust()` from `scripts/run-pipeline.ts` into an importable function (§4.1), wrap in a minimal server, deploy somewhere reachable. This is the single highest-priority remaining task — see §10 |
+| No HTTP/MCP endpoint exists — ASP registration cannot proceed without it | **Resolved** | `getTrust()` extracted into an importable function (`pipeline/gettrust.ts`), wrapped as a real MCP tool, deployed on Vercel — live at `https://sentra-gettrust.vercel.app/mcp`, verifiable with zero secrets via `npm run verify:live`. See `docs/mcp-server.md` |
 | OKX.AI review takes close to the full 24 hours | Medium, and now time-critical | Given the corrected timeline (§10), registration must be submitted first thing, not mid-window |
 | Quorum stage cost/latency at scale | Medium | No tiering built yet (§4.1a) — real gap if traffic materializes; free-tier daily cap (50/1000 requests) is a harder near-term constraint than latency |
 | CertiK / wallet-native risk-grading perceived as redundant | Medium | Pitch explicitly names both and states the distinct layer Sentra covers: instruction-integrity, not destination-reputation |

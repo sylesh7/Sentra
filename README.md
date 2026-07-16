@@ -7,6 +7,12 @@ provenance, on-chain agent identity, and hard-enforced spending limits on OKX's 
 Built for: OKX.AI Genesis Hackathon (submission deadline: Jul 17, 2026, 23:59 UTC)
 Primary tracks: Best Product, Software Utility, Finance Copilot (secondary)
 
+**Judging this submission?** Start with [`docs/JUDGE_GUIDE.md`](docs/JUDGE_GUIDE.md) —
+a fast path that verifies the live deployment with zero credentials of your own
+(`npm run verify:live`), a scoring map, and pre-answered reviewer questions. See
+[`docs/SECURITY_NOTES.md`](docs/SECURITY_NOTES.md) for the explicit enforced /
+not-in-scope boundary.
+
 ---
 
 ## 1. Problem Statement

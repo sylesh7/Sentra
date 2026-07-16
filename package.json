@@ -23,8 +23,10 @@
     "passport:show": "tsx scripts/passport-show.ts",
     "demo:naive": "tsx scripts/naive-agent-demo.ts",
     "mcp:serve": "tsx services/mcp/server.ts",
+    "verify:live": "tsx scripts/verify-live.ts",
     "test": "vitest run",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "agent:gate": "npm run typecheck && npm run test && npm run verify:live"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",
