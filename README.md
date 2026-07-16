@@ -74,6 +74,28 @@ Design rule carried through every layer: **content never gets trust because it c
 be trustworthy (structured or not) — only cryptographic or on-chain verification confers
 trust.**
 
+### 2.1 Why existing guardrails aren't enough
+
+Agents already ship with *some* line of defense against this class of attack. Each one
+solves a real, different problem — none of them solves this one:
+
+| Existing approach | What it actually catches | What it misses |
+|---|---|---|
+| **Prompt-injection filters / instruction-hygiene system prompts** | Obvious in-band commands embedded in visible text ("ignore previous instructions...") | Structured-metadata attacks that never read as an instruction at all — JSON-LD, Open Graph tags, CSS-hidden `<div>`s (the exact Campaign 1/2 technique); model-specific blind spots, since the Zscaler test showed 4 of 26 LLMs fell for the same page while 22 didn't |
+| **Wallet-native risk / reputation scanners** (CertiK-style contract & address scoring) | Known-bad contracts, drainer addresses, blacklisted destinations | A page lying about *what* to pay a perfectly legitimate, well-reputed address — this is a payload-integrity problem, not a destination-reputation problem, and a spotless address doesn't fix a poisoned instruction |
+| **Static session-key spend caps / allowlists** | Runaway or unbounded spend, payments to recipients outside a pre-approved list | Anything sent to a *new* counterparty within the cap — which is precisely the case that matters, since the entire point of agent-to-agent commerce is safely transacting with parties the agent has never seen before |
+| **Human-in-the-loop approval** | Most attacks a human reviewer would visually recognize | The entire premise of autonomous, machine-speed agent commerce — a human checkpoint on every payment reintroduces the exact bottleneck OKX.AI's model exists to remove, and doesn't scale past a handful of transactions a day |
+| **Self-verification** (asking the same model to double-check its own extraction) | Little — this is not a control found in real deployments, listed here because it's the naive first idea | Same model, same training data, same blind spot — no independent signal, so it doesn't actually check anything the model wasn't already going to believe |
+
+**Why Sentra's approach is different:** every layer above is either input-side filtering
+(scans text, misses structure) or destination-side scoring (checks the address, not the
+instruction). Sentra instead re-derives the payment fields itself, independently, from
+multiple heterogeneous models, *and* refuses to let structured or hidden content populate
+a payment field regardless of what any model reports — then backs that decision with an
+on-chain enforcement mechanism so the check can't simply be skipped by a compromised or
+rushed agent. No single layer above does more than one of those things; Sentra does all
+of them and fails closed if any layer can't complete.
+
 **L3 is enforcement, not advisory.** An agent that decides not to call Sentra doesn't get
 to skip the checkpoint — it simply can't produce a valid transaction on its own. The
 payment account's SOLE controlling validator is a 2-of-2 weighted multisig
@@ -185,65 +207,47 @@ or BlockPI add X Layer support later.
 
 ## 5. End-to-End Flow
 
+Sequence diagram of a real `getTrust()` call — matches `pipeline/gettrust.ts` exactly,
+not a simplified sketch: Sentra fetches the source itself, never trusts caller-supplied
+content, and issues a signed Trust Receipt on both the PASS and FAIL path.
+
+```mermaid
+sequenceDiagram
+    actor Agent as Calling Agent
+    participant Sentra as Sentra (getTrust)
+    participant Site as Source Website
+    participant Quorum as Quorum Models (OpenRouter)
+    participant Registry as ERC-8004 Identity Registry
+    participant L3 as L3 Weighted Multisig (Base Sepolia)
+
+    Agent->>Sentra: getTrust(proposedAction, source_url)
+    Sentra->>Site: fetch(source_url)
+    Site-->>Sentra: HTTP response (body + headers)
+    Sentra->>Sentra: verify RFC 9421 signature (L1a)
+    Sentra->>Sentra: parse to PageContent — quarantine<br/>JSON-LD / OG / hidden-CSS content (L1c)
+    Sentra->>Quorum: independently extract payment fields<br/>(2-3 heterogeneous models)
+    Quorum-->>Sentra: extracted fields — agree or disagree
+    Sentra->>Registry: verify counterparty identity (L2)
+    Registry-->>Sentra: registered / not registered
+    Sentra->>Sentra: capability interpreter — deny any field<br/>sourced from structured/hidden content (L1c)
+    Sentra->>Sentra: cross-check caller's proposedAction<br/>against independent findings
+    Sentra->>Sentra: issue signed Trust Receipt (PASS or FAIL)
+
+    alt All checks pass and proposedAction matches
+        opt caller passed execute: true
+            Sentra->>L3: co-sign UserOperation (only after PASS)
+            L3-->>Sentra: combined signature clears threshold — tx executes
+        end
+        Sentra-->>Agent: PASS + Trust Receipt (+ execution result)
+    else Any check fails, or claim mismatch
+        Sentra-->>Agent: FAIL + reason + Trust Receipt
+    end
 ```
- Calling Agent (e.g. a coding agent, a shopping agent, or OKX.AI escrow itself)
-      │
-      │  "I need to pay 0.0012 [asset] to 0xABC... for this API key"
-      ▼
-┌─────────────────────────────────────────────────────────────────┐
-│  SENTRA PRE-EXECUTION CHECKPOINT                                  │
-│                                                                     │
-│  Step 1 — Provenance Gate (L1a)                                   │
-│    → Fetch source page's Web Bot Auth signature (if present)      │
-│    → Signed + verified origin  → proceed at normal scrutiny       │
-│    → Unsigned / mismatched     → force max-scrutiny mode           │
-│                                                                     │
-│  Step 2 — Quarantined Extraction (L1c)                            │
-│    → Untrusted content → quarantined reader (NO tool access)      │
-│    → JSON-LD / OG / self-declared metadata = untrusted, always    │
-│    → Output: typed fields ONLY (recipient, amount, currency)      │
-│                                                                     │
-│  Step 3 — Quorum Check (L1b)                                      │
-│    → 2–3 independent models re-extract the same fields            │
-│    → Agreement → continue / Disagreement → flag + escalate        │
-│                                                                     │
-│  Step 4 — Identity Verification (L2)                               │
-│    → Query ERC-8004 Identity Registry for recipient/counterparty  │
-│    → No entry, or mismatch vs. claimed operator → REJECT           │
-│    → Verified entry → continue                                    │
-│                                                                     │
-│  Step 5 — Capability Interpreter (L1c)                             │
-│    → Deterministic policy code (not an LLM) checks:                │
-│      is this field, from this source, allowed to populate         │
-│      a payment-triggering action? → allow / deny                   │
-│                                                                     │
-│  Step 6 — Verdict                                                  │
-│    → PASS: forward typed, verified payment intent to planner       │
-│    → FAIL: block, return reasoned explanation + evidence log       │
-└─────────────────────────────────────────────────────────────────┘
-      │  (only on PASS)
-      ▼
- Privileged Planner (never saw raw untrusted content) issues UserOperation
-      │
-      ▼
-┌─────────────────────────────────────────────────────────────────┐
-│  L3 — MANDATORY ATTESTATION GATE (Base Sepolia, ERC-4337)          │
-│    → 2-of-2 weighted multisig smart account:                       │
-│         - agent session key   (weight 50)                          │
-│         - Sentra attestation key (weight 50) -- threshold 100      │
-│    → Agent alone can NEVER reach threshold -- no bypass exists     │
-│    → Sentra co-signs the EXACT (recipient, amount, nonce) tuple    │
-│      ONLY after this PASS, binding the attestation to this call    │
-│    → Combined signature → EntryPoint executes                      │
-│    → Solo agent signature → rejected before execution, no human    │
-│      needed (proven on-chain: scripts/attestation-demo.ts)         │
-└─────────────────────────────────────────────────────────────────┘
-      │
-      ▼
- Transaction settles (or is cryptographically impossible to settle
- outside policy) — result + Sentra's verdict log available for
- OKX.AI's existing escrow/arbitration flow if a dispute follows.
-```
+
+**Why this shape matters:** every arrow into Sentra is a real fetch or a real independent
+computation — nothing is taken as given from the calling agent except the URL to check.
+The L3 co-signature only ever happens after the PASS branch above it, so there is no code
+path where a payment executes without Sentra having independently verified it first.
 
 ---
 
