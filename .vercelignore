@@ -1,0 +1,11 @@
+node_modules
+dist
+.env
+.env.local
+*.session-key.json
+*.log
+.sentra-receipts
+test
+docs
+demo
+fixtures

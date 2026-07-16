@@ -22,15 +22,19 @@
     "pipeline:run": "tsx scripts/run-pipeline.ts",
     "passport:show": "tsx scripts/passport-show.ts",
     "demo:naive": "tsx scripts/naive-agent-demo.ts",
+    "mcp:serve": "tsx services/mcp/server.ts",
     "test": "vitest run",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.29.0",
     "@zerodev/ecdsa-validator": "^5.4.8",
     "@zerodev/permissions": "^5.6.3",
     "@zerodev/sdk": "^5.5.2",
     "@zerodev/weighted-validator": "^5.5.1",
+    "cheerio": "^1.2.0",
     "dotenv": "^16.5.0",
+    "express": "^5.2.1",
     "http-message-sig": "^0.2.0",
     "jsonwebkey-thumbprint": "^0.1.0",
     "structured-headers": "^2.0.2",
@@ -41,7 +45,9 @@
     "zod": "^3.24.2"
   },
   "devDependencies": {
+    "@types/express": "^5.0.6",
     "@types/node": "^22.10.5",
+    "@vercel/node": "^5.8.25",
     "tsx": "^4.19.2",
     "typescript": "^5.8.3",
     "vitest": "^3.0.5"

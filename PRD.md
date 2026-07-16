@@ -94,9 +94,7 @@ now vs. what it needs to become before ASP registration is possible.**
 
 ## 3. User Stories
 
-*(Unchanged from v1.0 — these describe target behavior once the HTTP/MCP wrapper
-exists. The underlying pipeline logic they depend on is real today; the network-facing
-tool surface is not yet built. See §4.1.)*
+*(The HTTP/MCP wrapper these describe is now real and deployed — see §4.1.)*
 
 ### Primary User: AI Agent (A2MCP caller)
 
@@ -106,9 +104,12 @@ tool surface is not yet built. See §4.1.)*
 > to build my own defense against a manipulated source.
 
 **Acceptance criteria:**
-- MCP tool `getTrust` accepts the proposed action (`recipient`, `amount`, `currency`),
-  the untrusted `source_content`, and `source_url`
-- Returns a verdict (`PASS` / `BLOCK`), a `reason`, and — on `PASS` — a signed
+- MCP tool `getTrust` accepts the proposed action (`recipient`, `amount`, `currency`)
+  and `source_url`; it deliberately does **not** accept a caller-supplied
+  `source_content` — it fetches `source_url` itself so the provenance check has real
+  response headers to verify, and so a compromised caller can't hand over fabricated
+  "content" claiming a signed origin
+- Returns a verdict (`PASS` / `FAIL`), a `reason`, and — on both outcomes — a signed
   **Trust Receipt**
 - Deterministic at the policy layer: identical typed inputs always produce the same
   allow/deny outcome from the interpreter stage
@@ -160,13 +161,20 @@ instead of a single number.)*
 
 ## 4. Feature Specification
 
-### 4.1 `getTrust()` — target interface vs. what exists today
+### 4.1 `getTrust()` — target interface vs. what exists today ✅ built, tested, deployed
 
-**Target module (not yet built):** `services/gettrust/` — a single exposed function/
-endpoint wrapping the whole pipeline: `getTrust(proposed_action, source_content,
-source_url) → TrustVerdict`.
+**`pipeline/gettrust.ts`** exports the real, single entry point:
+`getTrust({proposedAction, sourceUrl, execute?}) → GetTrustResult`. It deliberately does
+**not** accept caller-supplied `source_content` — it fetches `sourceUrl` itself (see the
+module's doc comment: trusting a caller's claimed content wholesale would reopen the
+exact hole this project exists to close). It is exposed as a real MCP tool
+(`services/mcp/getTrustTool.ts`, official `@modelcontextprotocol/sdk`), served locally
+(`npm run mcp:serve`) and deployed publicly on Vercel at
+**`https://sentra-gettrust.vercel.app/mcp`**. See `docs/mcp-server.md` for the full
+verification trail (`test/gettrust.test.ts`, `test/mcpServer.test.ts`, and a live
+production tool call over real HTTPS).
 
-**What actually exists today:**
+**What existed before this (kept for history):**
 - `pipeline/planner/plan.ts` exports `planPayment(input: PlannerInput): PlannerResult`
   — a **pure, synchronous** function. It does **not** take raw `source_content` or
   `source_url`; it takes the *already-computed* upstream verdicts:
@@ -188,11 +196,10 @@ source_url) → TrustVerdict`.
   written as a CLI script, not exported as a reusable, importable function, and not
   reachable over a network.
 
-**Remaining work to realize this section as designed:** extract the orchestration
-logic from `run-pipeline.ts` into an exported `getTrust(proposedAction, sourceContent,
-sourceUrl)` function, then wrap it in an HTTP server (or MCP tool server) so it's
-externally callable. This is real, scoped, buildable work — not a redesign, since every
-stage it would call already exists and is tested.
+**This is now done** — `pipeline/gettrust.ts` is exactly this extraction (async
+orchestration function, not a CLI script), and `services/mcp/getTrustTool.ts` +
+`api/mcp.ts` are the MCP tool server wrapping it, deployed at
+`https://sentra-gettrust.vercel.app/mcp`.
 
 **Internal stages, in order (all real, all tested):**
 
@@ -465,8 +472,8 @@ most of what v1.0 scheduled across "Day 1–2" is **already done**:
 | When | Milestone | Status |
 |---|---|---|
 | Already complete | Full 5-stage pipeline (L1a/L1b/L1c/L2), L3 attestation gate, Trust Receipt, Trust Passport, sanitized attack fixtures, mainnet-readiness proof, demo storyboard | ✅ Done — this is what v1.0's Day 1–2 targeted, and it's finished |
-| **Remaining, today (2026-07-16)** | Extract `getTrust()` as a real importable function; wrap in a minimal HTTP or MCP server; deploy it somewhere reachable | 🔲 **The one blocking item** — everything it calls already works |
-| **Remaining, today or early tomorrow** | Submit OKX.AI ASP registration (agent-driven flow, README §8) — start this the moment the endpoint is live, since review can take up to 24h | 🔲 Not started |
+| Already complete | Extract `getTrust()` as a real importable function; wrap in a real MCP server; deploy it publicly | ✅ Done — live at `https://sentra-gettrust.vercel.app/mcp`, verified over real HTTPS with a real MCP client (see `docs/mcp-server.md`) |
+| **Remaining, today or early tomorrow** | Submit OKX.AI ASP registration (agent-driven flow, README §8) — the endpoint is live, so this can start now; review can take up to 24h | 🔲 **The one blocking item** — requires the user's own authenticated agent session |
 | **Before deadline (Jul 17, 23:59 UTC)** | Record and post the ≤90s demo video with #OKXAI; submit the Google Form with ASP details + X post link | 🔲 Not started — storyboard ready (`demo/demo-script.md`) |
 
 ---

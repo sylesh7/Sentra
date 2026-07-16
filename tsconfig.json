@@ -15,5 +15,5 @@
     "noUnusedParameters": true,
     "noImplicitReturns": true
   },
-  "include": ["src", "pipeline", "wallet", "scripts", "contracts", "test"]
+  "include": ["src", "pipeline", "wallet", "scripts", "contracts", "test", "services", "api"]
 }
