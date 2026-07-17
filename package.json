@@ -30,6 +30,9 @@
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",
+    "@okxweb3/x402-core": "^0.1.0",
+    "@okxweb3/x402-evm": "^0.2.1",
+    "@okxweb3/x402-express": "^0.1.1",
     "@zerodev/ecdsa-validator": "^5.4.8",
     "@zerodev/permissions": "^5.6.3",
     "@zerodev/sdk": "^5.5.2",

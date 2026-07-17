@@ -1,4 +1,8 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "rewrites": [{ "source": "/mcp", "destination": "/api/mcp" }, { "source": "/mcp/(.*)", "destination": "/api/mcp" }]
+  "rewrites": [
+    { "source": "/mcp", "destination": "/api/mcp" },
+    { "source": "/mcp/(.*)", "destination": "/api/mcp" },
+    { "source": "/get-trust", "destination": "/api/get-trust" }
+  ]
 }

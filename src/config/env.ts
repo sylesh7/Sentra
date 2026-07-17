@@ -44,6 +44,18 @@ const envSchema = z.object({
   // demos both sides of the co-sign flow from one process. Persistent (not regenerated
   // per run) because the weighted account it co-controls holds real funds across runs.
   AGENT_SESSION_PRIVATE_KEY: hexPrivateKeySchema.optional(),
+
+  // OKX Developer Portal credentials for OKXFacilitatorClient (api/get-trust.ts's x402
+  // "exact" scheme, real payment verification -- see @okxweb3/x402-core). HMAC-SHA256
+  // request signing per OKX's own REST API auth spec, not a bearer token.
+  OKX_API_KEY: z.string().min(1).optional(),
+  OKX_SECRET_KEY: z.string().min(1).optional(),
+  OKX_PASSPHRASE: z.string().min(1).optional(),
+
+  // Recipient address for the (genuinely $0) x402 challenge api/get-trust.ts issues --
+  // no funds ever move at this price, but a real address is still required by the
+  // PaymentRequirements schema.
+  SENTRA_X402_PAY_TO: addressSchema.optional(),
 });
 
 // dotenv leaves declared-but-blank keys ("ZERODEV_RPC=") as "", not undefined --

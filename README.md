@@ -116,7 +116,7 @@ allowance.
 
 ## 3. Wallet & Testnet Selection (updated — X Layer, not Base Sepolia)
 
-**Chain: X Layer Testnet (OKX's own zkEVM L2, chain ID 195)**
+**Chain: X Layer Testnet (OKX's own zkEVM L2, chain ID 1952 — verified live via `eth_chainId`, not the commonly-misquoted 195)**
 - This is OKX.AI's own hackathon, and X Layer is named alongside OnchainOS, the Agent
   Payment Protocol, OKB, and OKX Wallet as the core infrastructure stack underneath
   OKX.AI itself — building here signals direct alignment with the ecosystem this
