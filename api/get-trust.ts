@@ -62,18 +62,21 @@ app.use(express.json());
 // function (e.g. "/get-trust" via the vercel.json rewrite, or "/api/get-trust" direct)
 // rather than normalizing it to "/" -- Express 5's stricter path-to-regexp wildcard
 // syntax makes a single catch-all pattern brittle, so route purely on HTTP method here.
+//
+// GET and POST are both payment-protected (a real 402 IS proof of reachability -- the
+// server responded, it just declined without payment -- so this doesn't reopen the
+// original "endpoint unreachable" failure mode). OKX's own `x402-check` CLI defaults to
+// probing with a bare GET and expects 402 there too, matching OKX's own doc examples
+// (e.g. "GET /generateImg" registered as the priced route) -- an always-200 GET, as this
+// endpoint originally had, reads to that check as "not a valid x402 service". HEAD is
+// the actual unambiguous liveness probe: unprotected, always 200, no payment semantics.
 app.use((req, res, next) => {
-  if (req.method !== "GET" && req.method !== "POST") {
-    next();
+  if (req.method === "HEAD") {
+    res.status(200).end();
     return;
   }
-  if (req.method === "GET") {
-    res.status(200).json({
-      service: "sentra-get-trust",
-      status: "ok",
-      description:
-        "Pre-execution trust check for an agent-to-agent payment. POST { recipient, amount, currency, source_url, execute? } to call. Free tier -- x402 price $0.",
-    });
+  if (req.method !== "GET" && req.method !== "POST") {
+    next();
     return;
   }
   getPaymentMiddleware()(req, res, next).catch((err) => {
@@ -83,16 +86,18 @@ app.use((req, res, next) => {
 });
 
 app.use(async (req, res) => {
-  if (req.method !== "POST") {
-    res.status(405).json({ error: "Method not allowed. Use POST with a JSON body, or GET for a health check." });
+  if (req.method !== "GET" && req.method !== "POST") {
+    res.status(405).json({ error: "Method not allowed. Use POST with a JSON body (or GET with the same fields as query params)." });
     return;
   }
-  const body = req.body as {
+
+  const source = req.method === "GET" ? (req.query as Record<string, unknown>) : (req.body as Record<string, unknown> | undefined);
+  const body = source as {
     recipient?: string;
     amount?: string;
     currency?: string;
     source_url?: string;
-    execute?: boolean;
+    execute?: boolean | string;
   } | undefined;
 
   if (!body || !body.recipient || !body.amount || !body.currency || !body.source_url) {
@@ -110,7 +115,7 @@ app.use(async (req, res) => {
         currency: body.currency,
       },
       sourceUrl: body.source_url,
-      execute: body.execute,
+      execute: body.execute === true || body.execute === "true",
     });
     res.status(200).json(result);
   } catch (err) {
